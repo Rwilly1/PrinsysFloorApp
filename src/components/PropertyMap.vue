@@ -85,13 +85,14 @@
           :key="sensor.id"
           @click="$emit('sensor-click', sensor)"
           class="sensor-marker"
-          :class="sensor.status"
+          :class="[sensor.status, { 'selected': selectedSensor && selectedSensor.id === sensor.id }]"
         >
           <circle 
             :cx="sensor.x" 
             :cy="sensor.y" 
             :r="sensor.status === 'alert' ? '10' : '7'"
             :fill="sensor.status === 'alert' ? '#ff5252' : '#0873bb'"
+            :fill-opacity="0.6"
             :stroke="sensor.status === 'alert' ? '#fff' : '#fff'"
             :stroke-width="sensor.status === 'alert' ? '2' : '1.5'"
             class="sensor-circle"
@@ -116,9 +117,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 
-defineProps({
+const props = defineProps({
   floor: Number,
-  sensors: Array
+  sensors: Array,
+  selectedSensor: Object
 })
 
 const emit = defineEmits(['sensor-click'])
@@ -140,7 +142,7 @@ const lastTapPosition = ref({ x: 0, y: 0 })
 const doubleTapDelay = 300
 const tapMoveThreshold = 10
 
-const minScale = 0.5
+const minScale = 1
 const maxScale = 3
 const zoomStep = 0.2
 
@@ -359,10 +361,21 @@ function getEventPoint(event) {
 .sensor-marker {
   cursor: pointer;
   pointer-events: all;
+  transition: all 0.2s;
 }
 
 .sensor-marker:hover {
-  opacity: 0.9;
+  opacity: 1;
+}
+
+.sensor-marker:active .sensor-circle {
+  fill-opacity: 1 !important;
+  filter: brightness(1.3);
+}
+
+.sensor-marker.selected .sensor-circle {
+  fill-opacity: 1 !important;
+  filter: brightness(1.2);
 }
 
 .sensor-circle {

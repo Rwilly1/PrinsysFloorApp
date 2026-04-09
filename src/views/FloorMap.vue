@@ -51,6 +51,7 @@
       ref="propertyMapRef"
       :floor="currentFloor" 
       :sensors="currentFloorSensors"
+      :selectedSensor="selectedSensor"
       @sensor-click="handleSensorClick"
     />
 
@@ -123,8 +124,16 @@
                   <span class="sensor-id">{{ sensor.id }}</span>
                   <span class="sensor-room">{{ sensor.room }}</span>
                 </div>
-                <div class="sensor-status-badge" :class="sensor.status">
-                  {{ sensor.status === 'alert' ? 'ALERT' : 'NORMAL' }}
+                <div class="sensor-actions">
+                  <div class="sensor-status-badge" :class="sensor.status">
+                    {{ sensor.status === 'alert' ? 'ALERT' : 'NORMAL' }}
+                  </div>
+                  <button v-if="sensor.status === 'alert'" @click="reactivateSensor(sensor)" class="reactivate-btn" title="Reactivate Sensor">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -141,6 +150,19 @@
         </div>
         <div class="modal-body">
           <form @submit.prevent="submitReport" class="report-form">
+            <div class="form-group">
+              <label for="sensor">Sensor</label>
+              <select id="sensor" v-model="reportForm.sensorId" required>
+                <option value="">Select sensor</option>
+                <option 
+                  v-for="sensor in currentFloorSensors" 
+                  :key="sensor.id" 
+                  :value="sensor.id"
+                >
+                  {{ sensor.id }} - {{ sensor.room }}
+                </option>
+              </select>
+            </div>
             <div class="form-group">
               <label for="issue">Issue Type</label>
               <select id="issue" v-model="reportForm.issue" required>
@@ -198,7 +220,8 @@
       </div>
       <div class="popup-actions">
         <button class="popup-btn" @click.stop="openSensorDetailsModal()">Check Details</button>
-        <button class="popup-btn" @click.stop="openReportModal(); selectedSensor = null">Report Issue</button>
+        <button v-if="selectedSensor.status !== 'alert'" class="popup-btn" @click.stop="openReportModal(selectedSensor.id); selectedSensor = null">Report Issue</button>
+        <button v-else class="popup-btn reactivate" @click.stop="reactivateSensor(selectedSensor); selectedSensor = null">Reactivate Sensor</button>
       </div>
     </div>
     
@@ -327,6 +350,7 @@ const showDetailsModal = ref(false)
 const showSensorDetailsModal = ref(false)
 const showReportModal = ref(false)
 const reportForm = ref({
+  sensorId: '',
   issue: '',
   description: '',
   priority: 'medium'
@@ -453,13 +477,17 @@ function closeSensorDetailsModal() {
   showSensorDetailsModal.value = false
 }
 
-function openReportModal() {
+function openReportModal(sensorId = null) {
+  if (sensorId) {
+    reportForm.value.sensorId = sensorId
+  }
   showReportModal.value = true
 }
 
 function closeReportModal() {
   showReportModal.value = false
   reportForm.value = {
+    sensorId: '',
     issue: '',
     description: '',
     priority: 'medium'
@@ -468,8 +496,22 @@ function closeReportModal() {
 
 function submitReport() {
   console.log('Report submitted:', reportForm.value)
-  alert(`Issue reported: ${reportForm.value.issue}\nPriority: ${reportForm.value.priority}`)
+  
+  // Find the sensor and mark it as alert
+  const sensor = currentFloorSensors.value.find(s => s.id === reportForm.value.sensorId)
+  if (sensor) {
+    sensor.status = 'alert'
+    sensor.reported = true
+  }
+  
+  alert(`Issue reported for sensor ${reportForm.value.sensorId}\nIssue: ${reportForm.value.issue}\nPriority: ${reportForm.value.priority}`)
   closeReportModal()
+}
+
+function reactivateSensor(sensor) {
+  sensor.status = 'normal'
+  sensor.reported = false
+  alert(`Sensor ${sensor.id} has been reactivated and is now operational.`)
 }
 
 function handleZoomIn() {
@@ -805,6 +847,15 @@ function handleResetZoom() {
   transform: translateY(0);
 }
 
+.popup-btn.reactivate {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.popup-btn.reactivate:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .popup-close {
   position: absolute;
   top: 0.75rem;
@@ -1005,6 +1056,35 @@ function handleResetZoom() {
   background: #f5f5f5;
   border-radius: 6px;
   border-left: 3px solid transparent;
+}
+
+.sensor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reactivate-btn {
+  background: #4caf50;
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reactivate-btn:hover {
+  background: #45a049;
+  transform: scale(1.1);
+}
+
+.reactivate-btn:active {
+  transform: scale(0.95);
 }
 
 .sensor-item.alert {
