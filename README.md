@@ -1,4 +1,4 @@
-# Water Leakage Monitoring App
+# PrinsysFloorApp
 
 A Vue 3 prototype for monitoring water leakage sensors across multiple building floors.
 
@@ -7,7 +7,7 @@ A Vue 3 prototype for monitoring water leakage sensors across multiple building 
 - **Multi-Floor Navigation**: Browse floors 1-8 with up/down arrows
 - **Interactive Floor Maps**: Visual property blueprints with sensor locations
 - **Alert System**: Real-time leak detection alerts with visual indicators
-- **Sensor Monitoring**: Random 3-21 sensors per floor with status indicators
+- **Sensor Monitoring**: Random 3-21 sensors per floor with unique random IDs
 - **Backend Alert Triggers**: API endpoints to trigger alerts programmatically
 
 ## Setup
