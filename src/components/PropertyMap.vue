@@ -1,13 +1,24 @@
 <template>
-  <div class="property-map">
-    <svg viewBox="0 0 420 340" class="map-svg">
+  <div class="property-map" ref="mapContainer">
+    <svg 
+      viewBox="0 0 420 340" 
+      class="map-svg"
+      @wheel.prevent="handleWheel"
+      @mousedown="startPan"
+      @mousemove="pan"
+      @mouseup="endPan"
+      @mouseleave="endPan"
+      @touchstart="startPan"
+      @touchmove="pan"
+      @touchend="endPan"
+    >
       <defs>
         <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="4" stroke="#999" stroke-width="0.5"/>
         </pattern>
       </defs>
       
-      <g class="floor-plan">
+      <g class="floor-plan" :transform="transform">
         <rect x="10" y="10" width="400" height="320" fill="#fafafa" stroke="#000" stroke-width="3"/>
         
         <rect x="20" y="20" width="70" height="90" fill="white" stroke="#000" stroke-width="2.5"/>
@@ -68,7 +79,7 @@
         <text x="315" y="270" font-size="11" font-weight="600" fill="#000" text-anchor="middle">{{ floor }}15</text>
       </g>
       
-      <g class="sensors">
+      <g class="sensors" :transform="transform">
         <g 
           v-for="sensor in sensors" 
           :key="sensor.id"
@@ -103,12 +114,214 @@
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
+
 defineProps({
   floor: Number,
   sensors: Array
 })
 
-defineEmits(['sensor-click'])
+const emit = defineEmits(['sensor-click'])
+
+defineExpose({
+  zoomIn,
+  zoomOut,
+  resetZoom
+})
+
+const scale = ref(1)
+const translateX = ref(0)
+const translateY = ref(0)
+const isPanning = ref(false)
+const startPoint = ref({ x: 0, y: 0 })
+const mapContainer = ref(null)
+const lastTapTime = ref(0)
+const lastTapPosition = ref({ x: 0, y: 0 })
+const doubleTapDelay = 300
+const tapMoveThreshold = 10
+
+const minScale = 0.5
+const maxScale = 3
+const zoomStep = 0.2
+
+// SVG viewBox dimensions
+const viewBoxWidth = 420
+const viewBoxHeight = 340
+
+const transform = computed(() => {
+  return `translate(${translateX.value}, ${translateY.value}) scale(${scale.value})`
+})
+
+function constrainTranslation(x, y, currentScale) {
+  // Get the container dimensions
+  if (!mapContainer.value) return { x, y }
+  
+  const container = mapContainer.value
+  const containerWidth = container.clientWidth
+  const containerHeight = container.clientHeight
+  
+  // Calculate the scaled dimensions
+  const scaledWidth = containerWidth * currentScale
+  const scaledHeight = containerHeight * currentScale
+  
+  // Calculate max translation to keep content within bounds
+  const maxTranslateX = (scaledWidth - containerWidth) / 2
+  const maxTranslateY = (scaledHeight - containerHeight) / 2
+  
+  // Constrain translation
+  const constrainedX = Math.max(-maxTranslateX, Math.min(maxTranslateX, x))
+  const constrainedY = Math.max(-maxTranslateY, Math.min(maxTranslateY, y))
+  
+  return { x: constrainedX, y: constrainedY }
+}
+
+function zoomIn() {
+  if (scale.value < maxScale) {
+    scale.value = Math.min(scale.value + zoomStep, maxScale)
+  }
+}
+
+function zoomOut() {
+  if (scale.value > minScale) {
+    scale.value = Math.max(scale.value - zoomStep, minScale)
+  }
+}
+
+function resetZoom() {
+  scale.value = 1
+  translateX.value = 0
+  translateY.value = 0
+}
+
+function handleWheel(event) {
+  const delta = event.deltaY > 0 ? -zoomStep : zoomStep
+  const newScale = Math.max(minScale, Math.min(maxScale, scale.value + delta))
+  
+  if (newScale !== scale.value) {
+    // Get mouse position relative to the SVG
+    const svg = event.currentTarget
+    const rect = svg.getBoundingClientRect()
+    const mouseX = event.clientX - rect.left
+    const mouseY = event.clientY - rect.top
+    
+    // Calculate the point in the SVG coordinate system before zoom
+    const pointBeforeZoomX = (mouseX - translateX.value) / scale.value
+    const pointBeforeZoomY = (mouseY - translateY.value) / scale.value
+    
+    // Update scale
+    scale.value = newScale
+    
+    // Calculate the point in the SVG coordinate system after zoom
+    const pointAfterZoomX = pointBeforeZoomX * scale.value
+    const pointAfterZoomY = pointBeforeZoomY * scale.value
+    
+    // Adjust translation to keep the point under the mouse cursor
+    let newX = mouseX - pointAfterZoomX
+    let newY = mouseY - pointAfterZoomY
+    
+    // Apply boundary constraints
+    const constrained = constrainTranslation(newX, newY, scale.value)
+    translateX.value = constrained.x
+    translateY.value = constrained.y
+  }
+}
+
+function handleDoubleTap(event, tapX, tapY) {
+  const currentTime = new Date().getTime()
+  const tapInterval = currentTime - lastTapTime.value
+  
+  // Check if taps are close together in position
+  const dx = tapX - lastTapPosition.value.x
+  const dy = tapY - lastTapPosition.value.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  
+  if (tapInterval < doubleTapDelay && tapInterval > 0 && distance < tapMoveThreshold) {
+    // Double tap detected
+    event.preventDefault()
+    
+    // Calculate the point in the SVG coordinate system before zoom
+    const pointBeforeZoomX = (tapX - translateX.value) / scale.value
+    const pointBeforeZoomY = (tapY - translateY.value) / scale.value
+    
+    // Zoom in
+    const newScale = Math.min(scale.value + zoomStep * 2, maxScale)
+    scale.value = newScale
+    
+    // Calculate the point in the SVG coordinate system after zoom
+    const pointAfterZoomX = pointBeforeZoomX * scale.value
+    const pointAfterZoomY = pointBeforeZoomY * scale.value
+    
+    // Adjust translation to keep the point under the tap location
+    let newX = tapX - pointAfterZoomX
+    let newY = tapY - pointAfterZoomY
+    
+    // Apply boundary constraints
+    const constrained = constrainTranslation(newX, newY, scale.value)
+    translateX.value = constrained.x
+    translateY.value = constrained.y
+    
+    lastTapTime.value = 0 // Reset to prevent triple tap
+    return true // Double tap handled
+  } else {
+    lastTapTime.value = currentTime
+    lastTapPosition.value = { x: tapX, y: tapY }
+    return false // Not a double tap
+  }
+}
+
+function startPan(event) {
+  const point = getEventPoint(event)
+  
+  // Check for double tap on touch devices
+  if (event.touches) {
+    const svg = event.currentTarget
+    const rect = svg.getBoundingClientRect()
+    const tapX = point.x - rect.left
+    const tapY = point.y - rect.top
+    
+    const isDoubleTap = handleDoubleTap(event, tapX, tapY)
+    if (isDoubleTap) {
+      return // Don't start panning on double tap
+    }
+  }
+  
+  isPanning.value = true
+  startPoint.value = {
+    x: point.x - translateX.value,
+    y: point.y - translateY.value
+  }
+}
+
+function pan(event) {
+  if (!isPanning.value) return
+  
+  event.preventDefault()
+  const point = getEventPoint(event)
+  let newX = point.x - startPoint.value.x
+  let newY = point.y - startPoint.value.y
+  
+  // Apply boundary constraints
+  const constrained = constrainTranslation(newX, newY, scale.value)
+  translateX.value = constrained.x
+  translateY.value = constrained.y
+}
+
+function endPan() {
+  isPanning.value = false
+}
+
+function getEventPoint(event) {
+  if (event.touches && event.touches.length > 0) {
+    return {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY
+    }
+  }
+  return {
+    x: event.clientX,
+    y: event.clientY
+  }
+}
 </script>
 
 <style scoped>
@@ -116,11 +329,13 @@ defineEmits(['sensor-click'])
   flex: 1;
   background: #fafafa;
   padding: 0.75rem;
-  overflow: auto;
+  overflow: hidden;
   -webkit-overflow-scrolling: touch;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  touch-action: none;
 }
 
 .map-svg {
@@ -130,6 +345,11 @@ defineEmits(['sensor-click'])
   display: block;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
   pointer-events: all;
+  cursor: grab;
+}
+
+.map-svg:active {
+  cursor: grabbing;
 }
 
 .sensors {

@@ -48,14 +48,42 @@
     </div>
 
     <PropertyMap 
+      ref="propertyMapRef"
       :floor="currentFloor" 
       :sensors="currentFloorSensors"
       @sensor-click="handleSensorClick"
     />
 
     <div class="map-actions">
-      <button @click="openDetailsModal" class="action-btn secondary">Check Details</button>
-      <button @click="openReportModal" class="action-btn primary">Report Issues</button>
+      <div class="zoom-controls">
+        <button @click="handleZoomIn" class="zoom-btn" title="Zoom In">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="11" y1="8" x2="11" y2="14"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <button @click="handleZoomOut" class="zoom-btn" title="Zoom Out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <button @click="handleResetZoom" class="zoom-btn" title="Reset Zoom">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+            <path d="M21 3v5h-5"></path>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+            <path d="M3 21v-5h5"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="action-buttons">
+        <button @click="openDetailsModal" class="action-btn secondary">Floor Details</button>
+        <button @click="openReportModal" class="action-btn primary">Report Issues</button>
+      </div>
     </div>
 
     <div v-if="showDetailsModal" class="modal-overlay" @click="closeDetailsModal">
@@ -303,6 +331,7 @@ const reportForm = ref({
   description: '',
   priority: 'medium'
 })
+const propertyMapRef = ref(null)
 
 const floorData = ref({
   1: generateSensors(1),
@@ -441,6 +470,24 @@ function submitReport() {
   console.log('Report submitted:', reportForm.value)
   alert(`Issue reported: ${reportForm.value.issue}\nPriority: ${reportForm.value.priority}`)
   closeReportModal()
+}
+
+function handleZoomIn() {
+  if (propertyMapRef.value) {
+    propertyMapRef.value.zoomIn()
+  }
+}
+
+function handleZoomOut() {
+  if (propertyMapRef.value) {
+    propertyMapRef.value.zoomOut()
+  }
+}
+
+function handleResetZoom() {
+  if (propertyMapRef.value) {
+    propertyMapRef.value.resetZoom()
+  }
 }
 </script>
 
@@ -583,10 +630,46 @@ function submitReport() {
   display: flex;
   gap: 0.75rem;
   padding: 1rem;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   background: white;
   border-top: 1px solid #e0e0e0;
   flex-shrink: 0;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.zoom-btn {
+  width: 40px;
+  height: 40px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.zoom-btn:hover {
+  background: #0873bb;
+  border-color: #0873bb;
+  color: white;
+  transform: translateY(-2px);
+}
+
+.zoom-btn:active {
+  transform: translateY(0);
 }
 
 .action-btn {
